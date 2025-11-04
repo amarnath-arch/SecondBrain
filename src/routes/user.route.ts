@@ -7,6 +7,7 @@ import { loginValidation } from "../Auth/loginValidation.js";
 import { userAuth } from "../Auth/userAuth.js";
 import contentModel from "../models/content.model.js";
 import { z } from "zod";
+import "../types.js";
 
 const userRouter = Router();
 
@@ -128,7 +129,6 @@ userRouter.post("/content", userAuth, async (req, res) => {
         title,
         link,
         // tags,
-        //@ts-ignore
         userId: req.userId,
       });
 
@@ -147,7 +147,6 @@ userRouter.get("/content", userAuth, async (req, res) => {
   try {
     const data = await contentModel
       .find({
-        //@ts-ignore
         userId: req.userId,
       })
       .populate("userId", "username");
@@ -167,7 +166,6 @@ userRouter.delete("/content", userAuth, async (req, res) => {
     const { contentId } = req.body;
 
     await contentModel.deleteOne({
-      //@ts-ignore
       userId: req.userId,
       _id: contentId,
     });

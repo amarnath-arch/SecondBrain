@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { ResponseStatus } from "../routes/statusCodes.js";
-import jwt from "jsonwebtoken";
+import jwt, { type JwtPayload } from "jsonwebtoken";
+import "../types.js";
 
 export function userAuth(req: Request, res: Response, next: NextFunction) {
   let token;
@@ -15,8 +16,7 @@ export function userAuth(req: Request, res: Response, next: NextFunction) {
 
     const user = jwt.verify(token ?? "", process.env.USER_JWT_SECRET ?? "");
 
-    // @ts-ignore
-    req.userId = user.userId;
+    req.userId = (user as JwtPayload).userId;
     next();
   } catch (err) {
     res.status(ResponseStatus.ServerError).json({
