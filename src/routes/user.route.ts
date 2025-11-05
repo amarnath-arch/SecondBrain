@@ -8,6 +8,8 @@ import { userAuth } from "../Auth/userAuth.js";
 import contentModel from "../models/content.model.js";
 import { z } from "zod";
 import "../types.js";
+import { createHash } from "./createHash.js";
+import { linkModel } from "../models/link.model.js";
 
 const userRouter = Router();
 
@@ -37,13 +39,21 @@ userRouter.post("/signup", loginValidation, async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 6);
 
   try {
-    await userModel.create({
+    const newUser = await userModel.create({
       username,
       password: hashedPassword,
     });
 
+    const token = jwt.sign(
+      {
+        userId: newUser?._id.toString(),
+      },
+      process.env.USER_JWT_SECRET ?? ""
+    );
+
     res.status(ResponseStatus.Success).json({
       msg: "Signed Up successfully",
+      token: `Bearer ${token}`,
     });
   } catch (err) {
     res.status(ResponseStatus.ServerError).json({
@@ -94,9 +104,8 @@ userRouter.post("/signin", loginValidation, async (req, res) => {
       );
 
       res.status(ResponseStatus.Success).json({
-        msg: {
-          token: `Bearer ${token}`,
-        },
+        msg: "Signed In successfully",
+        token: `Bearer ${token}`,
       });
     } catch (err) {
       res.status(ResponseStatus.ServerError).json({
@@ -152,7 +161,7 @@ userRouter.get("/content", userAuth, async (req, res) => {
       .populate("userId", "username");
 
     res.status(ResponseStatus.Success).json({
-      data: data,
+      contents: data,
     });
   } catch (err) {
     res.status(ResponseStatus.ServerError).json({
@@ -172,6 +181,77 @@ userRouter.delete("/content", userAuth, async (req, res) => {
 
     res.status(ResponseStatus.Success).json({
       msg: "content deleted successfully",
+    });
+  } catch (err) {
+    res.status(ResponseStatus.ServerError).json({
+      error: err,
+    });
+  }
+});
+
+userRouter.post("/brain/share", userAuth, async (req, res) => {
+  const { share } = req.body;
+
+  if (share) {
+    const hash = createHash(12);
+    // search for the user if the user already exists or not
+    const link = await linkModel.findOne({
+      userId: req.userId,
+    });
+
+    if (link) {
+      res.status(ResponseStatus.Success).json({
+        hash: link.hash,
+      });
+      return;
+    }
+
+    await linkModel.create({
+      hash,
+      userId: req.userId,
+    });
+
+    res.status(ResponseStatus.Success).json({
+      hash,
+    });
+  } else {
+    // delete teh link
+    await linkModel.deleteOne({
+      userId: req.userId,
+    });
+    res.status(ResponseStatus.Success).json({
+      msg: "deleted successfully",
+    });
+  }
+});
+
+userRouter.post("/brain/:shareLink", async (req, res) => {
+  const sharedHash = req.params.shareLink;
+
+  try {
+    const foundLink = await linkModel
+      .findOne({
+        hash: sharedHash,
+      })
+      .populate<{ userId: { username: string; _id: string } }>(
+        "userId",
+        "username"
+      );
+
+    if (!foundLink) {
+      res.status(ResponseStatus.AuthorizationError).json({
+        error: "Incorrect share Link",
+      });
+      return;
+    }
+
+    const contents = await contentModel.find({
+      userId: foundLink.userId?._id,
+    });
+
+    res.status(ResponseStatus.Success).json({
+      username: foundLink.userId?.username,
+      contents,
     });
   } catch (err) {
     res.status(ResponseStatus.ServerError).json({
