@@ -154,11 +154,26 @@ userRouter.post("/content", userAuth, async (req, res) => {
 
 userRouter.get("/content", userAuth, async (req, res) => {
   try {
-    const data = await contentModel
-      .find({
-        userId: req.userId,
-      })
-      .populate("userId", "username");
+    const { type } = req.query;
+
+    const filter: {
+      userId: string | undefined;
+      type?: string | undefined;
+    } = {
+      userId: req.userId,
+    };
+
+    if (type) {
+      filter.type = type.toString();
+    }
+
+    const data = await contentModel.find(filter).populate("userId", "username");
+
+    if (data.length <= 0) {
+      return res.status(ResponseStatus.NotFound).json({
+        msg: "content not found",
+      });
+    }
 
     res.status(ResponseStatus.Success).json({
       contents: data,
@@ -225,7 +240,7 @@ userRouter.post("/brain/share", userAuth, async (req, res) => {
   }
 });
 
-userRouter.post("/brain/:shareLink", async (req, res) => {
+userRouter.get("/brain/:shareLink", async (req, res) => {
   const sharedHash = req.params.shareLink;
 
   try {
